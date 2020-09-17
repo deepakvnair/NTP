@@ -1,0 +1,88 @@
+---
+
+- name: Fix NTP in servers
+  hosts: EMEA
+  gather_facts: yes
+  become: yes
+  become_user: root
+  become_method: sudo
+  
+
+  tasks:
+  - name: run platrep
+    shell: /root/platrep
+    register: platrep_result
+  - debug:
+     msg: "{{ platrep_result.stdout }}"
+
+  - name: check if ntp file exists
+    stat: 
+      path: /etc/ntp.conf
+    register: ntp_file
+
+  - name: Backup ntp file 
+    copy:
+      src: /etc/ntp.conf
+      dest: /var/tmp/ntp.conf_platops
+      remote_src: yes
+    when: ntp_file.stat.exists
+
+  - name: check if chronyd file exists
+    stat:
+      path: /etc/chrony.conf
+    register: chronyd_file
+   
+  - name: Backup chrony file
+    copy:
+      src: /etc/chrony.conf
+      dest: /var/tmp/chrony.conf_platops
+      remote_src: yes
+    when: chronyd_file.stat.exists
+  
+  - name: Remove chrony file
+    file:
+      path: /etc/chrony.conf
+      state: absent
+
+  - name: get service facts
+    service_facts:
+
+  - name: stop if ntp is running
+    systemd:
+     name: ntpd
+     state: stopped
+    when: ansible_facts.services["ntpd.service"] is defined
+
+  - name: stop if chronyd is running
+    systemd:
+     name: chronyd
+     state: stopped
+    when: ansible_facts.services["chronyd.service"] is defined
+
+  - name: Disable chronyd service as no plan to use it
+    systemd:
+     name: chronyd
+     enabled: no
+     masked: yes
+    when: ansible_facts.services["chronyd.service"] is defined
+         
+
+  - name: install ntp package
+    yum:
+      name: ntp
+      state: present
+
+  - name: Copy ntp template
+    copy:
+      src: "{{ playbook_dir }}/templates/{{ hostvars[inventory_hostname].dc }}/ntp.conf"
+      dest: /etc/ntp.conf
+      force: yes
+    changed_when: true
+    notify: enable and start ntp
+
+  handlers:
+   - name: enable and start ntp
+     service:
+      name: ntpd
+      state: restarted
+      enabled: yes  

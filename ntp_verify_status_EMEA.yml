@@ -1,0 +1,20 @@
+---
+- name: Verify  NTP service status in servers
+  hosts: EMEA
+  gather_facts: yes
+  become: yes
+  become_user: root
+  become_method: sudo
+ 
+  tasks:
+  - name: Verify NTP/Chronyd is running
+    service_facts:
+  - name: find status of ntp service
+    debug:
+      msg: "{{ ansible_facts.services['ntpd.service'].state }}" 
+  - name: ntpq status
+    command: ntpq -c lpeers
+    register: result
+  - debug:
+     msg: "{{ result.stdout_lines }}"
+        

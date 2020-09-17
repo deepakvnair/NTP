@@ -1,0 +1,68 @@
+---
+
+- name: Fix NTP in servers
+  hosts: EMEA
+  gather_facts: yes
+  become: yes
+  become_user: root
+  become_method: sudo
+  
+
+  tasks:
+  - name: get service facts
+    service_facts:
+
+  - name: stop if ntp is running
+    systemd:
+     name: ntpd
+     state: stopped
+    when: ansible_facts.services["ntpd.service"] is defined
+
+  - name: stop if chronyd is running
+    systemd:
+     name: chronyd
+     state: stopped
+    when: ansible_facts.services["chronyd.service"] is defined
+
+
+  - name: check if ntp file exists
+    stat:
+      path: /var/tmp/ntp.conf_platops
+    register: ntp_file
+
+
+  - name: copy back the file to /etc/ntp.conf
+    copy:
+      src: /var/tmp/ntp.conf_platops
+      dest: /etc/ntp.conf
+      remote_src: yes
+      force: yes
+    when: ntp_file.stat.exists
+    notify: enable and start ntp service
+
+  - name: check if chronyd file exists
+    stat:
+      path: /var/tmp/chrony.conf_platops
+    register: chronyd_file
+
+  - name: copy back the file to /etc/chrony.conf
+    copy:
+      src: /var/tmp/chrony.conf_platops
+      dest: /etc/chrony.conf
+      remote_src: yes
+      force: yes
+    when: chronyd_file.stat.exists
+    notify: enable and start chronyd service
+
+  handlers:
+   - name: enable and start ntp service
+     service:
+      name: ntpd
+      state: restarted
+      enabled: yes  
+   - name: enable and start chronyd service
+     systemd:
+      name: chronyd
+      state: started
+      enabled: yes
+      masked: no
